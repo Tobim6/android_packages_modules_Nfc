@@ -30,7 +30,10 @@ cc_defaults {
     ],
 
     srcs: ["**/*.cpp"],
-    exclude_srcs: ["**/*Test.cpp"],
+    // extns/pn54x is built as its own static lib (libnfc_mfc_extns, see
+    // extns/pn54x/Android.bp) with its own local_include_dirs -- excluded
+    // here to avoid double-compiling it without those include paths.
+    exclude_srcs: ["**/*Test.cpp", "extns/**/*.cpp"],
 
     include_dirs: [
         "packages/modules/Nfc/libnfc-nci/src/nfa/include",
@@ -39,6 +42,8 @@ cc_defaults {
         "packages/modules/Nfc/libnfc-nci/src/gki/ulinux",
         "packages/modules/Nfc/libnfc-nci/src/gki/common",
         "packages/modules/Nfc/libnfc-nci/utils/include",
+        "packages/modules/Nfc/NfcNci/nci/jni/extns/pn54x/inc",
+        "packages/modules/Nfc/NfcNci/nci/jni/extns/pn54x/src/common",
     ],
 
     shared_libs: [
@@ -70,6 +75,7 @@ cc_defaults {
         "server_configurable_flags",
         "libxml2",
         "com.android.nfc.module.flags-aconfig-cpp",
+        "libnfc_mfc_extns",
     ],
 
     defaults: [

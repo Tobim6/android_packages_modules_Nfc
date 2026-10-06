@@ -1,0 +1,75 @@
+// Port of AOSP's historical NXP PN54x Mifare Classic NDEF-mapping extension
+// (originally packages/apps/Nfc/nci/jni/extns/pn54x, Apache-2.0, dropped from
+// AOSP around the Project Treble transition). Samsung's stock system-side NFC
+// stack for this device still uses a close relative of this exact code
+// (confirmed via the shared symbol name NAME_MIFARE_READER_ENABLE present in
+// both this module's phNxpConfig.h and the real Samsung vendor HAL binary) to
+// implement Mifare Classic NDEF reading via raw-frame transceive, bypassing
+// the standard RW_Mfc* NFA layer entirely -- which is the actual reason
+// Mifare Classic reads fail on this chip even though RW_Mfc* itself is
+// byte-identical to Samsung's own (also present, also unused for this)
+// implementation of it.
+package {
+    default_applicable_licenses: ["Android-Apache-2.0"],
+}
+
+cc_library_static {
+    name: "libnfc_mfc_extns",
+
+    // Legacy 2015-era C/C++ code -- deliberately not held to the same
+    // -Wall -Wextra -Werror bar as the rest of this module; ported as
+    // faithfully as possible rather than modernized line-by-line.
+    cflags: [
+        "-Wno-error",
+        "-Wno-unused-parameter",
+        "-Wno-unused-variable",
+        "-Wno-unused-function",
+        "-Wno-sign-compare",
+        "-Wno-missing-field-initializers",
+        "-Wno-deprecated-declarations",
+    ],
+
+    srcs: [
+        "src/phNxpExtns.cpp",
+        "src/log/phNxpLog.cpp",
+        "src/mifare/phFriNfc_MifareStdMap.cpp",
+        "src/mifare/phFriNfc_MifStdFormat.cpp",
+        "src/mifare/phFriNfc_SmtCrdFmt.cpp",
+        "src/mifare/phNxpExtns_MifareStd.cpp",
+        "src/utils/phNxpConfig.cpp",
+    ],
+
+    local_include_dirs: [
+        "inc",
+        "src/common",
+        "src/log",
+        "src/mifare",
+        "src/utils",
+    ],
+
+    include_dirs: [
+        "packages/modules/Nfc/libnfc-nci/src/nfa/include",
+        "packages/modules/Nfc/libnfc-nci/src/nfc/include",
+        "packages/modules/Nfc/libnfc-nci/src/include",
+        "packages/modules/Nfc/libnfc-nci/src/gki/ulinux",
+        "packages/modules/Nfc/libnfc-nci/src/gki/common",
+        "packages/modules/Nfc/libnfc-nci/utils/include",
+    ],
+
+    shared_libs: [
+        "liblog",
+        "libcutils",
+        "libutils",
+        "libbase",
+    ],
+
+    stl: "libc++_static",
+    apex_available: [
+        "//apex_available:platform",
+        "com.android.nfcservices",
+    ],
+    min_sdk_version: "36",
+    visibility: [
+        "//packages/modules/Nfc:__subpackages__",
+    ],
+}

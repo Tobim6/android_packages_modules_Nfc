@@ -24,6 +24,8 @@
 #include <nativehelper/ScopedUtfChars.h>
 #include <semaphore.h>
 
+#include <phNxpExtns.h>
+
 #include "HciEventManager.h"
 #include "JavaClassConstants.h"
 #include "NativeWlcManager.h"
@@ -503,6 +505,15 @@ static void nfaConnectionCallback(uint8_t connEvent,
         nativeNfcTag_setActivatedRfProtocol(activatedProtocol);
         nativeNfcTag_setActivatedRfMode(activatedMode);
       }
+      // The Mifare Classic extension (EXTNS_*) does its own internal
+      // deactivate/reactivate cycling (e.g. after a raw AUTH/write); when
+      // it's mid-cycle, let it own this activation instead of running the
+      // normal connection-event handling below.
+      if (EXTNS_GetConnectFlag() == TRUE) {
+        NfcTag::getInstance().setActivationState();
+        nativeNfcTag_doConnectStatus(true);
+        break;
+      }
       NfcTag::getInstance().setActive(notListen);
       if (sIsDisabling || !sIsNfaEnabled) break;
       gActivated = true;
@@ -582,6 +593,9 @@ static void nfaConnectionCallback(uint8_t connEvent,
         nativeNfcTag_abortWaits();
         NfcTag::getInstance().abort();
       } else if (gIsTagDeactivating) {
+        NfcTag::getInstance().setActive(false);
+        nativeNfcTag_doDeactivateStatus(0);
+      } else if (EXTNS_GetDeactivateFlag() == TRUE) {
         NfcTag::getInstance().setActive(false);
         nativeNfcTag_doDeactivateStatus(0);
       } else if (!sIsDisabling) {
@@ -1084,6 +1098,7 @@ void nfaDeviceManagementCallback(uint8_t dmEvent,
             NFA_DisableDtamode();
           }
 
+          EXTNS_Close();
           NFA_Disable(FALSE);
           sIsDisabling = true;
         } else {
@@ -1734,6 +1749,11 @@ static jboolean nfcManager_doInitialize(JNIEnv* e, jobject o) {
       if (stat == NFA_STATUS_OK) {
         sNfaEnableEvent.wait();  // wait for NFA command to finish
       }
+      // Initialize the legacy NXP PN54x Mifare Classic NDEF-mapping
+      // extension (EXTNS_*). Mifare Classic NDEF handling on this device
+      // goes through this raw-transceive-based path, not the standard
+      // RW_Mfc* NFA layer.
+      EXTNS_Init(nfaDeviceManagementCallback, nfaConnectionCallback);
     }
 
     if (stat == NFA_STATUS_OK) {
@@ -1804,6 +1824,7 @@ static jboolean nfcManager_doInitialize(JNIEnv* e, jobject o) {
                                stat);
 
     if (sIsNfaEnabled) {
+      EXTNS_Close();
       stat = NFA_Disable(FALSE /* ungraceful */);
     }
 
@@ -2147,6 +2168,7 @@ static jboolean nfcManager_doDeinitialize(JNIEnv*, jobject) {
       NFA_DisableDtamode();
     }
 
+    EXTNS_Close();
     tNFA_STATUS stat = NFA_Disable(!sIsRecovering);
     if (stat == NFA_STATUS_OK) {
       int16_t max_polling_wait_time = NfcConfig::getUnsigned(

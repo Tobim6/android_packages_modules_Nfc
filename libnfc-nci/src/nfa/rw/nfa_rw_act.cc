@@ -2024,22 +2024,24 @@ void nfa_rw_presence_check(tNFA_RW_MSG* p_data) {
         NFA_RW_MIFARE_PRES_CHECK_AUTH_ON) {
       // Read last authenticated block address
       status = RW_MfcPresenceCheck(nfa_rw_cb.mifare_auth_cmd);
-    } else if (nfa_rw_cb.mifare_pres_check_status ==
-               NFA_RW_MIFARE_PRES_CHECK_IDLE) {
-      nfa_dm_cb.disc_cb.disc_flags |= NFA_DM_DISC_FLAGS_CHECKING;
-      nfa_dm_rf_deactivate(NFA_DEACTIVATE_TYPE_IDLE);
-      nfa_dm_cb.disc_cb.mifare_pc_tle.p_cback =
-          (TIMER_CBACK*)nfa_dm_disc_mifare_idle_timeout_cback;
-      nfa_sys_start_timer(&nfa_dm_cb.disc_cb.mifare_pc_tle, 0,
-                          NFA_DM_DISC_TIMEOUT_MIFARE_IDLE_PRESENCE_CHECK);
-      return;
-    } else if (nfa_rw_cb.mifare_pres_check_status ==
-               NFA_RW_MIFARE_PRES_CHECK_NONE) {
-      nfa_rw_cb.mifare_pres_check_status = NFA_RW_MIFARE_PRES_CHECK_START;
-      unsupported = true;
     } else {
-      /* Protocol unsupported by RW module... */
-      unsupported = true;
+      // This controller firmware fails the deactivate-to-sleep/reactivate
+      // round trip used by nfa_dm_disc_sleep_wakeup() for Mifare Classic
+      // tags specifically, and the deactivate-to-idle/reconfigure "Idle
+      // method" fallback below it also times out without rediscovering
+      // the tag -- confirmed via live NCI capture on this device: the
+      // tag activates correctly, but the very first presence-check cycle
+      // (fired ~3s after activation) fails both ways and the tag gets
+      // declared lost before a reader app can finish a scan on anything
+      // slower than a couple of seconds. This is a presence-check
+      // mechanism Samsung's own (older) NFC stack for this chip never
+      // implements at all, so stock never exercises this failing path.
+      // Skip straight to confirming presence instead of probing the tag
+      // through either broken mechanism; genuine tag removal is still
+      // caught separately via the normal RF deactivation notification.
+      nfa_rw_cb.mifare_pres_check_status = NFA_RW_MIFARE_PRES_CHECK_START;
+      nfa_rw_handle_presence_check_rsp(NFC_STATUS_OK);
+      return;
     }
   } else {
     /* Protocol unsupported by RW module... */

@@ -24,6 +24,7 @@
 #include <log/log.h>
 #include <nativehelper/ScopedLocalRef.h>
 #include <nativehelper/ScopedPrimitiveArray.h>
+#include <phNxpExtns.h>
 #include "IntervalTimer.h"
 #include <statslog_nfc.h>
 
@@ -391,6 +392,7 @@ void NfcTag::discoverTechnologies(tNFA_ACTIVATED& activationData) {
     mTechList[index] = TARGET_TYPE_KOVIO_BARCODE;
   } else if (NFC_PROTOCOL_MIFARE == rfDetail.protocol) {
     LOG(DEBUG) << StringPrintf("%s: Mifare Classic", fn);
+    EXTNS_MfcInit(activationData);
     mTechList[index] =
         TARGET_TYPE_MIFARE_CLASSIC;  // is TagTechnology.MIFARE_CLASSIC by Java
                                      // API
